@@ -1,5 +1,9 @@
 package Cecs327.Paxos;
 
+import static org.junit.Assert.*;
+
+import java.rmi.RemoteException;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -14,7 +18,9 @@ public class ChordTest {
 		int maxChords = (int) Math.pow(2, Chord.M);
 		chords = new Chord[maxChords];
 		for (int i = 0; i < chords.length; i++) {
-			chords[i] = new Chord(defaultPort + i, i);
+			int port = defaultPort + i;
+			chords[i] = new Chord(port, i);
+			System.out.println(i + " is starting RMI at port=" + port);
 		}
 	}
 
@@ -26,20 +32,54 @@ public class ChordTest {
 	}
 
 	@Test
-	public void printChords() {
-		for(Chord chord : chords) {
-			System.out.println(chord);
-		}
+	public void joinOneChord() throws RemoteException, InterruptedException {
+		chords[0].joinRing("localhost", defaultPort + 1);
+		assertEquals(1, chords[0].fingers[0].getId());
+		assertEquals(0, chords[1].getPredecessor().getId());
+
+		Thread.sleep(Chord.STABILIZE_TIMER);
+
+		assertEquals(1, chords[0].getPredecessor().getId());
+		assertEquals(0, chords[1].fingers[0].getId());
+
+		printChords();
 	}
 
 	@Test
-	public void test2() {
-		try {
-			Thread.sleep(5000);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
+	public void joinAllChords() throws RemoteException, InterruptedException {
+		System.out.println("Join all chords");
+		for (int i = 1; i < chords.length; i++) {
+			chords[i].joinRing("localhost", defaultPort);
+			Thread.sleep(Chord.STABILIZE_TIMER);
 		}
-		System.out.println("Test2");
+		printChords();
+
+		for (int i = 0; i < chords.length; i++) {
+			assertEquals(i - 1 < 0 ? chords.length - 1 : i - 1, chords[i].getPredecessor().getId());
+			assertEquals((i + 1) % chords.length, chords[i].fingers[0].getId());
+		}
+	}
+	
+	@Test
+	public void concurrentJoinAllChords() throws RemoteException, InterruptedException {
+		System.out.println("Concurrently joining all chords");
+		for (int i = 1; i < chords.length; i++) {
+			chords[i].joinRing("localhost", defaultPort);
+		}
+		Thread.sleep(Chord.STABILIZE_TIMER * chords.length);
+		printChords();
+
+		for (int i = 0; i < chords.length; i++) {
+			assertEquals(i - 1 < 0 ? chords.length - 1 : i - 1, chords[i].getPredecessor().getId());
+			assertEquals((i + 1) % chords.length, chords[i].fingers[0].getId());
+		}
 	}
 
+	private void printChords() {
+		int i = 0;
+		for (Chord chord : chords) {
+			System.out.println("Chord " + i++);
+			System.out.println(chord);
+		}
+	}
 }
