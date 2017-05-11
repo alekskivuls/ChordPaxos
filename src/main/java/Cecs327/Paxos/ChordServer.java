@@ -5,13 +5,14 @@ import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.rmi.RemoteException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Scanner;
 import java.util.Timer;
 import java.util.TimerTask;
 
-public class ChordUser {
+public class ChordServer {
 	int port;
 	static Chord chord;
 
@@ -24,12 +25,11 @@ public class ChordUser {
 			return Math.abs(bigInt.longValue());
 		} catch (NoSuchAlgorithmException e) {
 			e.printStackTrace();
-
 		}
 		return 0;
 	}
 
-	public ChordUser(int p) {
+	public ChordServer(int p) {
 		port = p;
 
 		Timer timer1 = new Timer();
@@ -115,12 +115,20 @@ public class ChordUser {
 		}, 1000, 1000);
 	}
 
-	static public void main(String args[]) {
+	public static void main(String args[]) {
 		if (args.length < 1) {
 			throw new IllegalArgumentException("Parameter: <port>");
 		}
 		try {
-			ChordUser chordUser = new ChordUser(Integer.parseInt(args[0]));
+			ChordServer chordUser = new ChordServer(Integer.parseInt(args[0]));
+			Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                    System.out.println("Forced to disconnect, now leaving");
+                    try {
+						ChordServer.chord.leaveRing();
+					} catch (RemoteException e) {
+						e.printStackTrace();
+					}
+            }));
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.exit(1);

@@ -34,13 +34,13 @@ public class ChordTest {
 	@Test
 	public void joinOneChord() throws RemoteException, InterruptedException {
 		chords[0].joinRing("localhost", defaultPort + 1);
-		assertEquals(1, chords[0].fingers[0].getId());
+		assertEquals(1, chords[0].getSuccessor().getId());
 		assertEquals(0, chords[1].getPredecessor().getId());
 
 		Thread.sleep(Chord.STABILIZE_TIMER);
 
 		assertEquals(1, chords[0].getPredecessor().getId());
-		assertEquals(0, chords[1].fingers[0].getId());
+		assertEquals(0, chords[1].getSuccessor().getId());
 
 		printChords();
 	}
@@ -56,8 +56,11 @@ public class ChordTest {
 
 		for (int i = 0; i < chords.length; i++) {
 			assertEquals(i - 1 < 0 ? chords.length - 1 : i - 1, chords[i].getPredecessor().getId());
-			assertEquals((i + 1) % chords.length, chords[i].fingers[0].getId());
+			assertEquals((i + 1) % chords.length, chords[i].getSuccessor().getId());
 		}
+//		chords[2].leaveRing();
+//		Thread.sleep(Chord.STABILIZE_TIMER);
+//		printChords();
 	}
 	
 	@Test
@@ -67,11 +70,12 @@ public class ChordTest {
 			chords[i].joinRing("localhost", defaultPort);
 		}
 		Thread.sleep(Chord.STABILIZE_TIMER * chords.length);
+		Thread.sleep(1000);
 		printChords();
 
 		for (int i = 0; i < chords.length; i++) {
 			assertEquals(i - 1 < 0 ? chords.length - 1 : i - 1, chords[i].getPredecessor().getId());
-			assertEquals((i + 1) % chords.length, chords[i].fingers[0].getId());
+			assertEquals((i + 1) % chords.length, chords[i].getSuccessor().getId());
 		}
 	}
 

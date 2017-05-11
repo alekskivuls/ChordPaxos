@@ -5,6 +5,8 @@ import java.rmi.RemoteException;
 
 public interface ChordMessageInterface extends Remote {
 	public ChordMessageInterface getPredecessor() throws RemoteException;
+	
+	public ChordMessageInterface getSuccessor() throws RemoteException;
 
 	ChordMessageInterface locateSuccessor(long key) throws RemoteException;
 
