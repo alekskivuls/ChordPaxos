@@ -9,28 +9,34 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import org.junit.After;
-import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
 
 public class ChordTest {
 
 	static Chord[] chords;
 	static final int defaultPort = 8000;
 
-	@Before
-	public void initChords() throws Exception {
+	@Rule
+	public ChordWatcher chordWatcher = new ChordWatcher();
+
+	public static void initChords() {
 		int maxChords = (int) Math.pow(2, Chord.M);
 		chords = new Chord[maxChords];
 		for (int i = 0; i < chords.length; i++) {
 			int port = defaultPort + i;
-			chords[i] = new Chord(port, i);
-			System.out.println(i + " is starting RMI at port=" + port);
+			try {
+				chords[i] = new Chord(port, i);
+			} catch (RemoteException e) {
+				e.printStackTrace();
+			}
+			// System.out.println(i + " is starting RMI at port=" + port);
 		}
 	}
 
-	@After
-	public void closeChords() {
+	public static void closeChords() {
 		for (Chord chord : chords)
 			chord.close();
 		chords = null;
@@ -38,6 +44,7 @@ public class ChordTest {
 
 	@Test
 	public void joinOneChord() throws RemoteException, InterruptedException {
+		System.out.println("Joining one chord");
 		chords[0].joinRing("localhost", defaultPort + 1);
 		assertEquals(1, chords[0].getSuccessor().getId());
 		assertEquals(0, chords[1].getPredecessor().getId());
@@ -46,8 +53,6 @@ public class ChordTest {
 
 		assertEquals(1, chords[0].getPredecessor().getId());
 		assertEquals(0, chords[1].getSuccessor().getId());
-
-		printChords();
 	}
 
 	@Test
@@ -57,64 +62,57 @@ public class ChordTest {
 			chords[i].joinRing("localhost", defaultPort);
 			Thread.sleep(Chord.STABILIZE_TIMER);
 		}
-		printChords();
 
 		for (int i = 0; i < chords.length; i++) {
 			assertEquals(i - 1 < 0 ? chords.length - 1 : i - 1, chords[i].getPredecessor().getId());
 			assertEquals((i + 1) % chords.length, chords[i].getSuccessor().getId());
 		}
-//		chords[2].leaveRing();
-//		Thread.sleep(Chord.STABILIZE_TIMER);
-//		printChords();
 	}
-	
+
 	@Test
 	public void joinAllChordsRandomly() throws RemoteException, InterruptedException {
+		System.out.println("Joining all chords randomly");
 		List<Integer> shuffledList = IntStream.range(0, chords.length).boxed().collect(Collectors.toList());
 		Collections.shuffle(shuffledList);
 		Random rand = new Random();
-		
-		System.out.println("Joining all chords randomly");
+
 		for (int i = 1; i < chords.length; i++) {
 			chords[shuffledList.get(i)].joinRing("localhost", defaultPort + shuffledList.get(rand.nextInt(i)));
 			Thread.sleep(Chord.STABILIZE_TIMER);
 		}
-		printChords();
 
 		for (int i = 0; i < chords.length; i++) {
 			assertEquals(i - 1 < 0 ? chords.length - 1 : i - 1, chords[i].getPredecessor().getId());
 			assertEquals((i + 1) % chords.length, chords[i].getSuccessor().getId());
 		}
 	}
-	
+
 	@Test
 	public void joinAllChordsConcurrently() throws RemoteException, InterruptedException {
-		System.out.println("Concurrently joining all chords");
+		System.out.println("Joining all chords concurrently");
 		for (int i = 1; i < chords.length; i++) {
 			chords[i].joinRing("localhost", defaultPort);
 		}
 		Thread.sleep(Chord.STABILIZE_TIMER * chords.length);
 		Thread.sleep(1000);
-		printChords();
 
 		for (int i = 0; i < chords.length; i++) {
 			assertEquals(i - 1 < 0 ? chords.length - 1 : i - 1, chords[i].getPredecessor().getId());
 			assertEquals((i + 1) % chords.length, chords[i].getSuccessor().getId());
 		}
 	}
-	
+
 	@Test
 	public void joinAllChordsRandomlyConcurrently() throws RemoteException, InterruptedException {
+		System.out.println("Joining all chords randomly and concurrently");
 		List<Integer> shuffledList = IntStream.range(0, chords.length).boxed().collect(Collectors.toList());
 		Collections.shuffle(shuffledList);
 		Random rand = new Random();
-		
-		System.out.println("Joining all chords randomly");
+
 		for (int i = 1; i < chords.length; i++) {
 			chords[shuffledList.get(i)].joinRing("localhost", defaultPort + shuffledList.get(rand.nextInt(i)));
 		}
 		Thread.sleep(Chord.STABILIZE_TIMER * chords.length);
-		printChords();
 
 		for (int i = 0; i < chords.length; i++) {
 			assertEquals(i - 1 < 0 ? chords.length - 1 : i - 1, chords[i].getPredecessor().getId());
@@ -122,11 +120,31 @@ public class ChordTest {
 		}
 	}
 
-	private void printChords() {
+	public static void printChords() {
 		int i = 0;
 		for (Chord chord : chords) {
 			System.out.println("Chord " + i++);
 			System.out.println(chord);
 		}
+	}
+
+	private class ChordWatcher extends TestWatcher {
+		@Override
+		protected void failed(Throwable e, Description description) {
+			System.out.println("\nTest Failed\n");
+			ChordTest.printChords();
+			System.out.println("\nStack Trace\n");
+			e.printStackTrace();
+		}
+		
+		@Override
+	    protected void starting(Description description) {
+	        ChordTest.initChords();
+	    }
+		
+		@Override
+	    protected void finished(Description description) {
+	        ChordTest.closeChords();
+	    }
 	}
 }
