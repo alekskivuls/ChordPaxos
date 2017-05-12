@@ -14,7 +14,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 public class Chord extends java.rmi.server.UnicastRemoteObject implements ChordMessageInterface {
-	public static final int M = 2;
+	public static final int M = 8;
 	public static final int STABILIZE_TIMER = 500;
 
 	private Registry registry; // rmi registry for lookup the remote objects.
@@ -149,14 +149,13 @@ public class Chord extends java.rmi.server.UnicastRemoteObject implements ChordM
 					&& isKeyInOpenInterval(succPred.getId(), this.getId(), fingers[0].getId())) {
 				fingers[0] = succPred;
 				fingers[0].notify(this);
-				System.out.println("Fixing" + guid);
 			}
 		} catch (RemoteException e) {
 			findingNextSuccessor();
 		}
 	}
 
-	public void notify(ChordMessageInterface chord) throws RemoteException {
+	public synchronized void notify(ChordMessageInterface chord) throws RemoteException {
 		if (predecessor.getId() == this.getId() || isKeyInOpenInterval(chord.getId(), predecessor.getId(), guid))
 			// TODO
 			// transfer keys not in the range (j,i] to j;

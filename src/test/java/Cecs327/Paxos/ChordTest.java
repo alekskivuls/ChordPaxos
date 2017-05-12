@@ -1,8 +1,13 @@
 package Cecs327.Paxos;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 import java.rmi.RemoteException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.junit.After;
 import org.junit.Before;
@@ -11,7 +16,7 @@ import org.junit.Test;
 public class ChordTest {
 
 	static Chord[] chords;
-	static final int defaultPort = 8080;
+	static final int defaultPort = 8000;
 
 	@Before
 	public void initChords() throws Exception {
@@ -64,13 +69,51 @@ public class ChordTest {
 	}
 	
 	@Test
-	public void concurrentJoinAllChords() throws RemoteException, InterruptedException {
+	public void joinAllChordsRandomly() throws RemoteException, InterruptedException {
+		List<Integer> shuffledList = IntStream.range(0, chords.length).boxed().collect(Collectors.toList());
+		Collections.shuffle(shuffledList);
+		Random rand = new Random();
+		
+		System.out.println("Joining all chords randomly");
+		for (int i = 1; i < chords.length; i++) {
+			chords[shuffledList.get(i)].joinRing("localhost", defaultPort + shuffledList.get(rand.nextInt(i)));
+			Thread.sleep(Chord.STABILIZE_TIMER);
+		}
+		printChords();
+
+		for (int i = 0; i < chords.length; i++) {
+			assertEquals(i - 1 < 0 ? chords.length - 1 : i - 1, chords[i].getPredecessor().getId());
+			assertEquals((i + 1) % chords.length, chords[i].getSuccessor().getId());
+		}
+	}
+	
+	@Test
+	public void joinAllChordsConcurrently() throws RemoteException, InterruptedException {
 		System.out.println("Concurrently joining all chords");
 		for (int i = 1; i < chords.length; i++) {
 			chords[i].joinRing("localhost", defaultPort);
 		}
 		Thread.sleep(Chord.STABILIZE_TIMER * chords.length);
 		Thread.sleep(1000);
+		printChords();
+
+		for (int i = 0; i < chords.length; i++) {
+			assertEquals(i - 1 < 0 ? chords.length - 1 : i - 1, chords[i].getPredecessor().getId());
+			assertEquals((i + 1) % chords.length, chords[i].getSuccessor().getId());
+		}
+	}
+	
+	@Test
+	public void joinAllChordsRandomlyConcurrently() throws RemoteException, InterruptedException {
+		List<Integer> shuffledList = IntStream.range(0, chords.length).boxed().collect(Collectors.toList());
+		Collections.shuffle(shuffledList);
+		Random rand = new Random();
+		
+		System.out.println("Joining all chords randomly");
+		for (int i = 1; i < chords.length; i++) {
+			chords[shuffledList.get(i)].joinRing("localhost", defaultPort + shuffledList.get(rand.nextInt(i)));
+		}
+		Thread.sleep(Chord.STABILIZE_TIMER * chords.length);
 		printChords();
 
 		for (int i = 0; i < chords.length; i++) {
