@@ -13,8 +13,11 @@ import java.rmi.server.UnicastRemoteObject;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import Cecs327.Paxos.ChordHashing.HashingFunction;
+
 public class Chord extends java.rmi.server.UnicastRemoteObject implements ChordMessageInterface {
-	public static final int M = 8;
+	public static int M = 3;
+	public static HashingFunction hashFun = HashingFunction.MD5;
 	public static final int STABILIZE_TIMER = 500;
 
 	private Registry registry; // rmi registry for lookup the remote objects.
@@ -25,14 +28,14 @@ public class Chord extends java.rmi.server.UnicastRemoteObject implements ChordM
 
 	public Chord(int port, long guid) throws RemoteException {
 		this.guid = guid;
-		this.filePath = "./" + guid + "/repository/";
+		this.filePath = "./Chords/" + guid + "/repository/";
 		new File(filePath).mkdirs();
 		fingers = new ChordMessageInterface[M];
 		for (int i = 0; i < M; i++) {
 			fingers[i] = this;
 		}
-
 		predecessor = this;
+		
 		Timer timer = new Timer();
 		timer.scheduleAtFixedRate(new TimerTask() {
 			@Override
@@ -47,15 +50,19 @@ public class Chord extends java.rmi.server.UnicastRemoteObject implements ChordM
 			throw e;
 		}
 	}
-	
+
 	public ChordMessageInterface getPredecessor() throws RemoteException {
 		return predecessor;
 	}
-	
+
 	public ChordMessageInterface getSuccessor() throws RemoteException {
 		return fingers[0];
 	}
 	
+	private void setSuccessor(ChordMessageInterface successor) {
+		fingers[0] = successor;
+	}
+
 	public long getId() throws RemoteException {
 		return guid;
 	}
@@ -68,23 +75,23 @@ public class Chord extends java.rmi.server.UnicastRemoteObject implements ChordM
 		try {
 			Registry registry = LocateRegistry.getRegistry(ip, port);
 			ChordMessageInterface chord = (ChordMessageInterface) (registry.lookup("Chord"));
-			fingers[0] = chord.locateSuccessor(this.getId());
-			fingers[0].notify(this);
+			setSuccessor(chord.locateSuccessor(this.getId()));
+			getSuccessor().notify(this);
 		} catch (NotBoundException e) {
 			e.printStackTrace();
 		}
 	}
 
 	public ChordMessageInterface locateSuccessor(long key) throws RemoteException {
-		if (key == guid)
+		if (key == this.getId())
 			throw new IllegalArgumentException("Key must be distinct that  " + guid);
 		// Check if this node is the only node in the ring
-		if (fingers[0].getId() != this.getId()) {
-			if (isKeyInSemiCloseInterval(key, guid, fingers[0].getId()))
-				return fingers[0];
+		if (getSuccessor().getId() != this.getId()) {
+			if (isKeyInSemiCloseInterval(key, this.getId(), getSuccessor().getId()))
+				return getSuccessor();
 			return closestPrecedingNode(key).locateSuccessor(key);
 		}
-		return fingers[0];
+		return getSuccessor();
 	}
 
 	public void put(long guidObject, InputStream stream) throws RemoteException {
@@ -124,18 +131,19 @@ public class Chord extends java.rmi.server.UnicastRemoteObject implements ChordM
 		return closestPreceding;
 	}
 
-	// TODO Fix finding
+	// TODO Test finding
 	public void findingNextSuccessor() {
-		fingers[0] = this;
 		for (int i = 0; i < M; i++) {
 			try {
 				if (fingers[i].isAlive()) {
-					fingers[0] = fingers[i];
+					setSuccessor(fingers[i]);
+					return;
 				}
-			} catch (RemoteException | NullPointerException e) {
-				fingers[i] = null;
+			} catch (RemoteException e) {
+				fingers[i] = this;
 			}
 		}
+		setSuccessor(this);
 	}
 
 	public void stabilize() {
@@ -143,12 +151,12 @@ public class Chord extends java.rmi.server.UnicastRemoteObject implements ChordM
 		 * fixFingers(); checkPredecessor();
 		 */
 		try {
-			ChordMessageInterface succPred = fingers[0].getPredecessor();
+			ChordMessageInterface succPred = getSuccessor().getPredecessor();
 
-			if (succPred.getId() != this.getId()
-					&& isKeyInOpenInterval(succPred.getId(), this.getId(), fingers[0].getId())) {
-				fingers[0] = succPred;
-				fingers[0].notify(this);
+			if (succPred.getId() != getId()
+					&& isKeyInOpenInterval(succPred.getId(), getId(), getSuccessor().getId())) {
+				this.setSuccessor(succPred);
+				this.getSuccessor().notify(this);
 			}
 		} catch (RemoteException e) {
 			findingNextSuccessor();
@@ -156,7 +164,7 @@ public class Chord extends java.rmi.server.UnicastRemoteObject implements ChordM
 	}
 
 	public synchronized void notify(ChordMessageInterface chord) throws RemoteException {
-		if (predecessor.getId() == this.getId() || isKeyInOpenInterval(chord.getId(), predecessor.getId(), guid))
+		if (predecessor.getId() == getId() || isKeyInOpenInterval(chord.getId(), predecessor.getId(), getId()))
 			// TODO
 			// transfer keys not in the range (j,i] to j;
 			predecessor = chord;
@@ -177,7 +185,7 @@ public class Chord extends java.rmi.server.UnicastRemoteObject implements ChordM
 		}
 	}
 
-	// TODO Check predecessor
+	// TODO Fix check predecessor
 	public void checkPredecessor() {
 		try {
 			if (predecessor != null && !predecessor.isAlive())

@@ -9,10 +9,13 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
+
+import Cecs327.Paxos.ChordHashing.HashingFunction;
 
 public class ChordTest {
 
@@ -21,6 +24,12 @@ public class ChordTest {
 
 	@Rule
 	public ChordWatcher chordWatcher = new ChordWatcher();
+
+	@BeforeClass
+	public static void configureChord() {
+		Chord.hashFun = HashingFunction.STRICT_BYTE;
+		Chord.M = HashingFunction.STRICT_BYTE.getNumBits();
+	}
 
 	public static void initChords() {
 		int maxChords = (int) Math.pow(2, Chord.M);
@@ -44,7 +53,6 @@ public class ChordTest {
 
 	@Test
 	public void joinOneChord() throws RemoteException, InterruptedException {
-		System.out.println("Joining one chord");
 		chords[0].joinRing("localhost", defaultPort + 1);
 		assertEquals(1, chords[0].getSuccessor().getId());
 		assertEquals(0, chords[1].getPredecessor().getId());
@@ -57,7 +65,6 @@ public class ChordTest {
 
 	@Test
 	public void joinAllChords() throws RemoteException, InterruptedException {
-		System.out.println("Join all chords");
 		for (int i = 1; i < chords.length; i++) {
 			chords[i].joinRing("localhost", defaultPort);
 			Thread.sleep(Chord.STABILIZE_TIMER);
@@ -71,7 +78,6 @@ public class ChordTest {
 
 	@Test
 	public void joinAllChordsRandomly() throws RemoteException, InterruptedException {
-		System.out.println("Joining all chords randomly");
 		List<Integer> shuffledList = IntStream.range(0, chords.length).boxed().collect(Collectors.toList());
 		Collections.shuffle(shuffledList);
 		Random rand = new Random();
@@ -89,7 +95,6 @@ public class ChordTest {
 
 	@Test
 	public void joinAllChordsConcurrently() throws RemoteException, InterruptedException {
-		System.out.println("Joining all chords concurrently");
 		for (int i = 1; i < chords.length; i++) {
 			chords[i].joinRing("localhost", defaultPort);
 		}
@@ -104,7 +109,6 @@ public class ChordTest {
 
 	@Test
 	public void joinAllChordsRandomlyConcurrently() throws RemoteException, InterruptedException {
-		System.out.println("Joining all chords randomly and concurrently");
 		List<Integer> shuffledList = IntStream.range(0, chords.length).boxed().collect(Collectors.toList());
 		Collections.shuffle(shuffledList);
 		Random rand = new Random();
@@ -136,15 +140,16 @@ public class ChordTest {
 			System.out.println("\nStack Trace\n");
 			e.printStackTrace();
 		}
-		
+
 		@Override
-	    protected void starting(Description description) {
-	        ChordTest.initChords();
-	    }
-		
+		protected void starting(Description description) {
+			ChordTest.initChords();
+			System.out.println(description);
+		}
+
 		@Override
-	    protected void finished(Description description) {
-	        ChordTest.closeChords();
-	    }
+		protected void finished(Description description) {
+			ChordTest.closeChords();
+		}
 	}
 }
